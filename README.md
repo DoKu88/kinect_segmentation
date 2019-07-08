@@ -36,20 +36,10 @@ roslaunch simple_object_segmentation simple_object_segmentation.launch
 ```bash
 roslaunch simple_object_segmentation simple_object_segmentation.launch user_input:=none
 ```
-user marks a point on the image_view2 and the region the point is segmented automatically 
-* [image_view2](https://github.com/jsk-ros-pkg/jsk_common) *is required*
-```bash
-roslaunch simple_object_segmentation simple_object_segmentation.launch user_input:=point
-```
-user marks the object region using a 2D bounding box and the program segments the region of interest. 
-* [image_view2](https://github.com/jsk-ros-pkg/jsk_common) *for marking the region on the image*
-```bash
-roslaunch simple_object_segmentation simple_object_segmentation.launch user_input:=rect
-```
 
 ### Parameters
 The user control parameters are defined in `./cfg/SupervoxelSegmentation.cfg`. The pameters are for controlling the supervoxel segmentation. The details and functions of the parameters can be found in the [pcl tutorial page.](http://pointclouds.org/documentation/tutorials/supervoxel_clustering.php)
 
 
 ## Sample Results
-<img src="data/sample.png" width="100%" height="100%"/>
+<img src="data/example_segmentation.png" width="100%" height="100%"/>

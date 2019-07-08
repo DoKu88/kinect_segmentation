@@ -565,8 +565,8 @@ void SimpleObjectSegmentation::segment(const PointCloud::Ptr in_cloud) {
     pcl::toROSMsg(*grid, output_img); // PointCloud2 -> image message
 
     cloud_proj.header.frame_id = ros_voxels.header.frame_id;
-    //this->pub_cloud_.publish(ros_voxels);
-    this->pub_cloud_.publish(cloud_proj);
+    this->pub_cloud_.publish(ros_voxels);
+    //this->pub_cloud_.publish(cloud_proj);
     this->pub_indices_.publish(ros_indices);
     this->pub_img_.publish(output_img);
 }
