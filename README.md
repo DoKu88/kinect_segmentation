@@ -5,6 +5,7 @@ The node takes point cloud data from RGB--D sensor or stereo camera as input.
 This repository is for the Kinect V2 sensor and inputs a point cloud and outputs
 via ROS nodes a segmented point cloud and an image representation of this 
 segmented point cloud, projected on the xy plane. 
+
 Note that we crop part of the point cloud to run our segmentation on since we're
 only interested in a small part of the image. 
 
