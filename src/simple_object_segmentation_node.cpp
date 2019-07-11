@@ -13,6 +13,8 @@
 #include <sensor_msgs/image_encodings.h>
 #include <pcl/features/normal_3d.h>
 #include <pcl/conversions.h>
+#include <pcl/range_image/range_image_planar.h>
+#include <opencv2/core/core.hpp>
 
 SimpleObjectSegmentation::SimpleObjectSegmentation() :
     num_threads_(8), neigbor_size_(26), cc_thresh_(-0.01f) {
@@ -96,26 +98,30 @@ void SimpleObjectSegmentation::callback(
 
     pcl::PointXYZRGB minPt, maxPt;
     pcl::getMinMax3D (*cloud, minPt, maxPt);
-    ROS_INFO("Let's print!");
-    std::cout<<"Max x: "<<maxPt.x<<" Max y: "<<maxPt.y<<" Max z: "<<maxPt.z<<std::endl;
-    std::cout<<"Min x: "<<minPt.x<<" Min y: "<<minPt.y<<" Min z: "<<minPt.z<<std::endl;
+
+    int x_start = 400;
+    int y_start = 0;
+    int width = 600;
+    int height = 500;
 
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudFiltered (new pcl::PointCloud<pcl::PointXYZRGB>);
 
-    // Define min and max for X, Y and Z
-    float minX = -0.5, minY = -0.4, minZ = 0.5;
-    float maxX = +0.1, maxY = 0.0 /*+0.4*/, maxZ = +1.0;
+    for (size_t i = 0; i < width; i++) {
+      for (size_t j = 0; j < height; j++) {
+        cloudFiltered->push_back(cloud->at(i+x_start, j+y_start));
+      }
+    }
 
-    pcl::CropBox<pcl::PointXYZRGB> boxFilter;
-    boxFilter.setMin(Eigen::Vector4f(minX, minY, minZ, 1.0));
-    boxFilter.setMax(Eigen::Vector4f(maxX, maxY, maxZ, 1.0));
-    boxFilter.setInputCloud(cloud);
-    boxFilter.filter(*cloudFiltered);
+    cloudFiltered->width = width;
+    cloudFiltered->height = height;
+
     // boxFilter.applyFilter(cloudFiltered);
     //cloudFiltered->width = 500;
     //cloudFiltered->height = 500;
 
-    std::cout<<"point cloud filtered:"<<cloudFiltered->width<<" "<<cloudFiltered->height<<std::endl;
+    pcl::getMinMax3D (*cloudFiltered, minPt, maxPt);
+    std::cout<<"point cloud filtered:"<<*cloudFiltered<<std::endl;
+    std::cout<<"filtered min, max:"<<minPt<<" "<<maxPt<<std::endl;
 
     this->segment(cloudFiltered);
     // this->segment(cloud);
@@ -520,55 +526,42 @@ void SimpleObjectSegmentation::segment(const PointCloud::Ptr in_cloud) {
        }
     }
 
+    std::cout<<"sv_clustered:"<<sv_clustered.size()<<std::endl;
+
     sensor_msgs::PointCloud2 ros_voxels;
     jsk_recognition_msgs::ClusterPointIndices ros_indices;
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_pre_im = this->publishSupervoxel(sv_clustered,
-                           ros_voxels, ros_indices,
-                           this->header_);
+                           ros_voxels, ros_indices, this->header_);
 
-    // Compute cloud normals, create the normal estimation class
-    pcl::NormalEstimation<pcl::PointXYZRGB, pcl::Normal> ne;
-    ne.setInputCloud (cloud_pre_im);
+    // Deleted code from here
+    pcl::PointXYZRGB minPt, maxPt;
+    pcl::getMinMax3D(*cloud_pre_im, minPt, maxPt);
+    std::cout<<"cloud_pre_im: "<<*cloud_pre_im<<std::endl;
+    std::cout<<"minPt:"<<minPt<<" maxPt:"<<maxPt<<std::endl;
+    std::cout<<"random point:"<<cloud_pre_im->points.at(0)<<" x"<<cloud_pre_im->points.at(0).x<<
+      " y"<<cloud_pre_im->points.at(0).y<<std::endl;
 
-    // create empty kdtree pass it to the normal estimation object based on the given input dataset
-    pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGB> ());
-    ne.setSearchMethod (tree);
-    pcl::PointCloud<pcl::Normal>::Ptr cloud_normals (new pcl::PointCloud<pcl::Normal>);
+    float fx = 1081.372;
+    float fy = 1081.372;
+    float cx = 959.50;
+    float cy = 539.50;
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr img = project_to_camera_frame(cloud_pre_im, fx, fy, cx, cy);
+    std::cout<<"Checkpoint 0"<<std::endl;
+    /*cv_bridge::CvImage out_msg;
+    out_msg.header = ros_voxels.header;
+    out_msg.encoding = sensor_msgs::image_encodings::RGB8;
+    out_msg.image = image;*/
 
-    // Use all neighbors in a sphere of radius 3cm
-    //ne.setRadiusSearch (0.01);
-    ne.setKSearch(9);
-    ne.compute(*cloud_normals); // Compute the features
-
-    pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr cloud_RGB_norm (new pcl::PointCloud<pcl::PointXYZRGBNormal>);
-    pcl::concatenateFields(*cloud_pre_im, *cloud_normals, *cloud_RGB_norm);
-
-    // Make unorganized point cloud -> organized point cloud
-    Eigen::Vector3f origin = Eigen::Vector3f(0,0,0);
-    Eigen::Vector3f axis_x = Eigen::Vector3f(1,0,0);
-    Eigen::Vector3f axis_y = Eigen::Vector3f(0,1,0);
-    float length   = 400;
-    int image_size = 500;
-    float max_resolution = 2 * length / image_size;
-    int max_nn_to_consider = 5;
-
-    auto aux_cloud = ProjectToPlane(cloud_RGB_norm, origin, axis_x, axis_y);
-    pcl::PointXYZRGBNormal minPt, maxPt;
-    pcl::getMinMax3D (*aux_cloud, minPt, maxPt);
-
-    auto grid = GenerateGrid(axis_x , axis_y, length, image_size, maxPt.x, minPt.x, maxPt.y, minPt.y);
-    sensor_msgs::PointCloud2 cloud_proj;
-    InterpolateToGrid(aux_cloud, grid, max_resolution, max_nn_to_consider);
     sensor_msgs::Image output_img;
+    pcl::toROSMsg(*img, output_img); // PointCloud2 -> image message
+    std::cout<<"Checkpoint 1"<<std::endl;
 
-    pcl::toROSMsg(*aux_cloud, cloud_proj);
-    pcl::toROSMsg(*grid, output_img); // PointCloud2 -> image message
-
-    cloud_proj.header.frame_id = ros_voxels.header.frame_id;
     this->pub_cloud_.publish(ros_voxels);
-    //this->pub_cloud_.publish(cloud_proj);
     this->pub_indices_.publish(ros_indices);
+    std::cout<<"Checkpoint 2"<<std::endl;
+    //this->pub_img_.publish(out_msg.toImageMsg());
     this->pub_img_.publish(output_img);
+    std::cout<<"Checkpoint 3"<<std::endl;
 }
 
 void SimpleObjectSegmentation::segmentRecursiveCC(
@@ -830,6 +823,60 @@ void SimpleObjectSegmentation::InterpolateToGrid(pcl::PointCloud<pcl::PointXYZRG
         }
     }
     std::cout<<"num_zeros:"<< count_zeros<<std::endl;
+}
+
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr SimpleObjectSegmentation::project_to_camera_frame(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud,
+      float fx, float fy, float cx, float cy) {
+
+        int width = 600;
+        int height = 500;
+        int size = 300000;
+        int x_start = 400;
+        int y_start = 0;
+
+        //cv::Mat image(height, width, CV_8UC3, cv::Scalar(0,0,0));
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_flat (new pcl::PointCloud<pcl::PointXYZRGB>);
+
+        int x = 0;
+        int y = 0;
+        for (size_t i = 0; i < size; i++) {
+          cloud_flat->push_back(cloud->at(0));
+          cloud_flat->at(i).x = x;
+          cloud_flat->at(i).y = y;
+          cloud_flat->at(i).z = 0.0;
+          cloud_flat->at(i).rgb = 0;
+
+          y++;
+          if (y == width) {
+            y = 0;
+            x++;
+          }
+
+        }
+
+        cloud_flat->width = width;
+        cloud_flat->height = height;
+        cloud_flat->is_dense = true;
+        cloud_flat->points.resize(size);
+
+        std::cout<<"cloud_flat:"<<*cloud_flat<<std::endl;
+
+        // project each point to the camera frame
+        for (size_t i = 0; i < cloud->size(); i++) {
+          int x = (int) (cloud->points.at(i).x * (fx / (float) cloud->points.at(i).z)) + cx - x_start;
+          int y = (int) (cloud->points.at(i).y * (fy / (float) cloud->points.at(i).z)) + cy - y_start;
+          uint8_t r = cloud->points.at(i).r;
+          uint8_t g = cloud->points.at(i).g;
+          uint8_t b = cloud->points.at(i).b;
+
+          cloud_flat->at(x,y).x = x;
+          cloud_flat->at(x,y).y = y;
+          cloud_flat->at(x,y).z = 0;
+          cloud_flat->at(x,y).rgb = cloud->points.at(i).rgb;
+
+        }
+
+  return cloud_flat;
 }
 
 int main(int argc, char *argv[]) {

@@ -122,6 +122,11 @@ class SimpleObjectSegmentation: public SupervoxelSegmentation {
     void InterpolateToGrid(pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr cloud, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr grid,
           float max_resolution, int max_nn_to_consider);
 
+    //cv::Mat project_to_camera_frame(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud,
+    //      float fx, float fy, float cx, float cy);
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr project_to_camera_frame(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud,
+          float fx, float fy, float cx, float cy);
+
 };
 
 

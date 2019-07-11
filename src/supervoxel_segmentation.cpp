@@ -89,7 +89,7 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr SupervoxelSegmentation::publishSupervoxel
        all_indices, header);
     ros_cloud.data.clear();
     pcl::toROSMsg(*output, ros_cloud);
-    // std::cout<<"output"<<output->size()<<" "<<std::endl;
+    std::cout<<"output width, height, size:"<<output->width<<" "<<output->height<<" "<<output->size()<<" "<<std::endl;
     ros_indices.header = header;
     ros_cloud.header = header;
     ROS_INFO("publishSupervoxel");
