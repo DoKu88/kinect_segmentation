@@ -103,6 +103,7 @@ void SimpleObjectSegmentation::callback(
     int y_start = 0;
     int width = 640; //600;
     int height = 480; //500;
+    float maxZ_cloud = 0;
 
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudFiltered (new pcl::PointCloud<pcl::PointXYZRGB>);
 
@@ -112,8 +113,13 @@ void SimpleObjectSegmentation::callback(
           cloud->at(i+x_start, j+y_start).z = 0.85;
         }
         cloudFiltered->push_back(cloud->at(i+x_start, j+y_start));
+        if (cloud->at(i+x_start, j+y_start).z > maxZ_cloud) {
+          maxZ_cloud = cloud->at(i+x_start, j+y_start).z;
+        }
       }
     }
+
+    //std::cout<<"maxZ encountered:"<<maxZ_cloud<<std::endl;
 
     cloudFiltered->width = width;
     cloudFiltered->height = height;
@@ -122,9 +128,28 @@ void SimpleObjectSegmentation::callback(
     //cloudFiltered->width = 500;
     //cloudFiltered->height = 500;
 
-    pcl::getMinMax3D (*cloudFiltered, minPt, maxPt);
-    //std::cout<<"point cloud filtered:"<<*cloudFiltered<<std::endl;
-    //std::cout<<"filtered min, max:"<<minPt<<" "<<maxPt<<std::endl;
+    /*pcl::getMinMax3D (*cloudFiltered, minPt, maxPt);
+    std::cout<<"point cloud pixel cropped:"<<*cloudFiltered<<std::endl;
+    std::cout<<"cropped min, max:"<<minPt<<" "<<maxPt<<std::endl;*/
+
+    float minX = -2.0, minY = -2.0, minZ = -0.5;
+    float maxX = 2.0, maxY = 2.0, maxZ = 0.97;
+
+    /*pcl::CropBox<pcl::PointXYZRGB> boxFilter;
+    boxFilter.setMin(Eigen::Vector4f(minX, minY, minZ, 0.0));
+    boxFilter.setMax(Eigen::Vector4f(maxX, maxY, maxZ, 0.0));
+    boxFilter.setInputCloud(cloud);
+    boxFilter.filter(*cloudFiltered); */
+
+    pcl::PassThrough<pcl::PointXYZRGB> filter;
+    filter.setInputCloud(cloudFiltered);
+    filter.setFilterFieldName ("z");
+    filter.setFilterLimits (minZ, maxZ);
+    filter.filter(*cloudFiltered);
+
+    /*pcl::getMinMax3D (*cloudFiltered, minPt, maxPt);
+    std::cout<<"point cloud filtered:"<<*cloudFiltered<<std::endl;
+    std::cout<<"filtered min, max:"<<minPt<<" "<<maxPt<<std::endl;*/
 
     this->segment(cloudFiltered);
     // this->segment(cloud);
@@ -282,7 +307,6 @@ void SimpleObjectSegmentation::callbackPoint(
     center_z = min_z + (max_z - min_z) / 2.0f;
     center_y = min_y + (max_y - min_y) / 2.0f;
     // center_x = min_x - (max_x - min_x) / 2.0f;
-
 
     //! cluster points indices
     jsk_recognition_msgs::ClusterPointIndices ros_indices;
@@ -548,7 +572,7 @@ void SimpleObjectSegmentation::segment(const PointCloud::Ptr in_cloud) {
     float fx = 1054.2610685010493; //1081.3720703125;
     float fy = 1054.3489042456938; //1081.3720703125;
     float cx = 982.02230007094522; //959.50;
-    float cy = 533.06023277405473; //539.50;   
+    float cy = 533.06023277405473; //539.50;
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr img = project_to_camera_frame(cloud_pre_im, fx, fy, cx, cy);
 
     sensor_msgs::Image output_img;
@@ -858,6 +882,7 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr SimpleObjectSegmentation::project_to_came
         // project each point to the camera frame
         for (size_t i = 0; i < cloud->size(); i++) {
           //std::cout<<"i:"<<i<<std::endl;
+          //std::cout<<"x world:"<<cloud->points.at(i).x<<" y world:"<<cloud->points.at(i).y<<std::endl;
           int x = (int) (cloud->points.at(i).x * (fx / (float) cloud->points.at(i).z)) + cx - x_start;
           int y = (int) (cloud->points.at(i).y * (fy / (float) cloud->points.at(i).z)) + cy - y_start;
           uint8_t r = cloud->points.at(i).r;
@@ -870,6 +895,7 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr SimpleObjectSegmentation::project_to_came
           cloud_flat->at(x,y).y = y;
           cloud_flat->at(x,y).z = 0;
           cloud_flat->at(x,y).rgb = cloud->points.at(i).rgb;
+          //std::cout<<"ye"<<std::endl;
         }
 
   return cloud_flat;
