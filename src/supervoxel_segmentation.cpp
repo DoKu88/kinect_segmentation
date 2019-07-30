@@ -81,18 +81,18 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr SupervoxelSegmentation::publishSupervoxel
       all_indices.push_back(indices);
       *output = *output + *super_voxel_cloud;
     }
-    std::cout<<"output[0] "<<output->points[0]<<std::endl;
-    std::cout<<"output[0] "<<output->points[0].x<<" "<<output->points[0].y<<" "<<output->points[0].z<<" "<<std::endl;
+    //std::cout<<"output[0] "<<output->points[0]<<std::endl;
+    //std::cout<<"output[0] "<<output->points[0].x<<" "<<output->points[0].y<<" "<<output->points[0].z<<" "<<std::endl;
 
     ros_indices.cluster_indices.clear();
     ros_indices.cluster_indices = this->convertToROSPointIndices(
        all_indices, header);
     ros_cloud.data.clear();
     pcl::toROSMsg(*output, ros_cloud);
-    std::cout<<"output width, height, size:"<<output->width<<" "<<output->height<<" "<<output->size()<<" "<<std::endl;
+    //std::cout<<"output width, height, size:"<<output->width<<" "<<output->height<<" "<<output->size()<<" "<<std::endl;
     ros_indices.header = header;
     ros_cloud.header = header;
-    ROS_INFO("publishSupervoxel");
+    //ROS_INFO("publishSupervoxel");
 
     return output;
 }
