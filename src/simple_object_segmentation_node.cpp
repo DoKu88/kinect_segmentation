@@ -103,22 +103,22 @@ void SimpleObjectSegmentation::callback(
     int y_start = 0;
     int width = 640; //600;
     int height = 480; //500;
-    float maxZ_cloud = 0;
+    float maxZ_limit = 0.97;
 
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudFiltered (new pcl::PointCloud<pcl::PointXYZRGB>);
 
     for (size_t i = 0; i < width; i++) {
       for (size_t j = 0; j < height; j++) {
-        if (cloud->at(i+x_start, j+y_start).z == 0){
+        /*if (cloud->at(i+x_start, j+y_start).z == 0){
           cloud->at(i+x_start, j+y_start).z = 0.85;
-        }
-        cloudFiltered->push_back(cloud->at(i+x_start, j+y_start));
-        if (cloud->at(i+x_start, j+y_start).z > maxZ_cloud) {
-          maxZ_cloud = cloud->at(i+x_start, j+y_start).z;
+        }*/
+        //cloudFiltered->push_back(cloud->at(i+x_start, j+y_start));
+
+        if (cloud->at(i+x_start, j+y_start).z <= maxZ_limit && cloud->at(i+x_start, j+y_start).z != 0) {
+          cloudFiltered->push_back(cloud->at(i+x_start, j+y_start));
         }
       }
     }
-
     //std::cout<<"maxZ encountered:"<<maxZ_cloud<<std::endl;
 
     cloudFiltered->width = width;
@@ -128,9 +128,9 @@ void SimpleObjectSegmentation::callback(
     //cloudFiltered->width = 500;
     //cloudFiltered->height = 500;
 
-    /*pcl::getMinMax3D (*cloudFiltered, minPt, maxPt);
+    pcl::getMinMax3D (*cloudFiltered, minPt, maxPt);
     std::cout<<"point cloud pixel cropped:"<<*cloudFiltered<<std::endl;
-    std::cout<<"cropped min, max:"<<minPt<<" "<<maxPt<<std::endl;*/
+    std::cout<<"cropped min, max:"<<minPt<<" "<<maxPt<<std::endl;
 
     float minX = -2.0, minY = -2.0, minZ = -0.5;
     float maxX = 2.0, maxY = 2.0, maxZ = 0.97;
@@ -141,17 +141,19 @@ void SimpleObjectSegmentation::callback(
     boxFilter.setInputCloud(cloud);
     boxFilter.filter(*cloudFiltered); */
 
-    pcl::PassThrough<pcl::PointXYZRGB> filter;
+    /*pcl::PassThrough<pcl::PointXYZRGB> filter;
     filter.setInputCloud(cloudFiltered);
     filter.setFilterFieldName ("z");
     filter.setFilterLimits (minZ, maxZ);
-    filter.filter(*cloudFiltered);
+    filter.filter(*cloudFiltered);*/
 
-    /*pcl::getMinMax3D (*cloudFiltered, minPt, maxPt);
+    pcl::getMinMax3D (*cloudFiltered, minPt, maxPt);
     std::cout<<"point cloud filtered:"<<*cloudFiltered<<std::endl;
-    std::cout<<"filtered min, max:"<<minPt<<" "<<maxPt<<std::endl;*/
+    std::cout<<"filtered min, max:"<<minPt<<" "<<maxPt<<std::endl;
+    std::cout<<*cloudFiltered<<std::endl;
 
     this->segment(cloudFiltered);
+    std::cout<<"YEEET"<<std::endl;
     // this->segment(cloud);
     ROS_INFO("CALL BACK SUCCESSFUL, SEGMENTED POINT CLOUD");
 }
@@ -505,7 +507,10 @@ cv::Mat SimpleObjectSegmentation::makeImageFromPointCloud(pcl::PointCloud<pcl::P
 void SimpleObjectSegmentation::segment(const PointCloud::Ptr in_cloud) {
     SupervoxelMap supervoxel_clusters;
     AdjacentList adjacency_list;
+    std::cout<<"YEET 1"<<std::endl;
+    std::cout<<"in_cloud"<<*in_cloud<<std::endl;
     this->supervoxelSegmentation(in_cloud, supervoxel_clusters, adjacency_list);
+    std::cout<<"YEET 2"<<std::endl;
     UInt32Map voxel_labels;
     for (auto it = supervoxel_clusters.begin(); it != supervoxel_clusters.end(); it++) {
        voxel_labels[it->first] = -1;
@@ -553,7 +558,7 @@ void SimpleObjectSegmentation::segment(const PointCloud::Ptr in_cloud) {
        }
     }
 
-    //std::cout<<"sv_clustered:"<<sv_clustered.size()<<std::endl;
+    std::cout<<"sv_clustered:"<<sv_clustered.size()<<std::endl;
 
     sensor_msgs::PointCloud2 ros_voxels;
     jsk_recognition_msgs::ClusterPointIndices ros_indices;
@@ -563,16 +568,17 @@ void SimpleObjectSegmentation::segment(const PointCloud::Ptr in_cloud) {
     // Deleted code from here
     pcl::PointXYZRGB minPt, maxPt;
     pcl::getMinMax3D(*cloud_pre_im, minPt, maxPt);
-    //std::cout<<"cloud_pre_im: "<<*cloud_pre_im<<std::endl;
-    //std::cout<<"minPt:"<<minPt<<" maxPt:"<<maxPt<<std::endl;
-    //std::cout<<"random point:"<<cloud_pre_im->points.at(0)<<" x"<<cloud_pre_im->points.at(0).x<<
-    //  " y"<<cloud_pre_im->points.at(0).y<<std::endl;
+    std::cout<<"cloud_pre_im: "<<*cloud_pre_im<<std::endl;
+    std::cout<<"minPt:"<<minPt<<" maxPt:"<<maxPt<<std::endl;
+    std::cout<<"random point:"<<cloud_pre_im->points.at(0)<<" x"<<cloud_pre_im->points.at(0).x<<
+      " y"<<cloud_pre_im->points.at(0).y<<std::endl;
 
     // Camera intrinsics matrix K
     float fx = 1054.2610685010493; //1081.3720703125;
     float fy = 1054.3489042456938; //1081.3720703125;
     float cx = 982.02230007094522; //959.50;
     float cy = 533.06023277405473; //539.50;
+
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr img = project_to_camera_frame(cloud_pre_im, fx, fy, cx, cy);
 
     sensor_msgs::Image output_img;
@@ -580,6 +586,9 @@ void SimpleObjectSegmentation::segment(const PointCloud::Ptr in_cloud) {
     this->pub_cloud_.publish(ros_voxels);
     this->pub_indices_.publish(ros_indices);
     this->pub_img_.publish(output_img);
+
+    //std::cout<<"PROJECTION ONTO CAMERA FRAME FAILED!!!"<<std::endl;
+
 }
 
 void SimpleObjectSegmentation::segmentRecursiveCC(
